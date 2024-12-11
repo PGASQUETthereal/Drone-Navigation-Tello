@@ -25,5 +25,3 @@ Drone.move_forward(500)
 Drone.flip_forward()
 
 Drone.land()
-
-hekl
