@@ -18,7 +18,6 @@ print("State : " + str(Drone.get_current_state()))
 
 
 
-Drone.flip_back()
 
 Drone.move_forward(500)
 
