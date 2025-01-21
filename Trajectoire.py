@@ -1,6 +1,7 @@
 import pygame
 from djitellopy import Tello
 import time
+import math
 
 # Initialisation de Pygame
 pygame.init()
@@ -37,40 +38,87 @@ except Exception as e:
     print("Drone non connecté :", e)
 
 
+import math
+
 def send_commands_to_drone(trajectory):
     """
     Envoie les commandes de vol au drone pour suivre la trajectoire ou affiche les commandes si le drone n'est pas connecté.
     """
-    drone.takeoff()
+    if drone_connected:
+        drone.takeoff()
+    angle = 0  # Angle initial (en degrés)
+
     for i in range(len(trajectory) - 1):
         x1, y1 = trajectory[i]
         x2, y2 = trajectory[i + 1]
-        dx = int((x2 - x1)*area_width/WIDTH*100)
-        dy = int((y1 - y2)*area_length/HEIGHT*100)
-        print("dx = ", dx)
-        print("dy = ", dy)
+
+        # Conversion des points en distances (en cm)
+        dx = int((x2 - x1) * area_width / WIDTH * 100)  # Longueur en cm
+        dy = int((y1 - y2) * area_length / HEIGHT * 100)  # Hauteur en cm
+        print(f"dx={dx}, dy={dy}")
+
+        # Calcul de la distance et de l'angle
+        distance = math.sqrt(dx**2 + dy**2)  # Distance entre les points
+        alpha = math.degrees(math.atan2(dx, dy))  # Angle cible en degrés
+        print(f"distance = {distance}, alpha (angle cible) = {alpha}")
+
+        # Calcul de l'angle de rotation nécessaire
+        rotation_angle =  angle - alpha
+        if rotation_angle > 180:
+            rotation_angle -= 360
+        elif rotation_angle < -180:
+            rotation_angle += 360
+
+        print(f"Rotation nécessaire = {rotation_angle}")
+
         if drone_connected:
             try:
-                if dx > 20:
-                    drone.move_right(abs(dx))  # Déplacement à droite
-                    print('Droite de ', dx)
-                elif dx < -20:
-                    drone.move_left(abs(dx))  # Déplacement à gauche
-                    print('Gauche de ', dx)
+                # Tourner dans la direction optimale
+                if rotation_angle > 0:
+                    drone.rotate_counter_clockwise(int(rotation_angle))
+                elif rotation_angle < 0:
+                    drone.rotate_clockwise(int(-rotation_angle))
 
-                if dy > 20:
-                    drone.move_forward(abs(dy))  # Avancer
-                    print('Avance de ', dy)
-                elif dy < -20:
-                    drone.move_back(abs(dy))  # Reculer
-                    print('Recule de ', dy)
+                # Mettre à jour l'angle actuel
+                angle = alpha
 
-                #time.sleep(1)  # Pause pour stabilisation
+                # Avancer sur la distance calculée
+                drone.move_forward(int(distance))  # Convertir en cm
+                time.sleep(1)  # Pause pour stabilisation
             except Exception as e:
                 print("Erreur lors de l'envoi des commandes au drone :", e)
         else:
             # Affichage des commandes simulées
-            print(f"Commande simulée: dx={dx}, dy={dy}")
+            print(f"Commande simulée: rotation={rotation_angle}, avancer={distance}")
+
+    if drone_connected:
+        try:
+            drone.land()
+        except Exception as e:
+            print("Erreur lors de l'atterrissage :", e)
+
+        # if drone_connected:
+        #     try:
+        #         if dx > 20:
+        #             drone.move_right(abs(dx))  # Déplacement à droite
+        #             print('Droite de ', dx)
+        #         elif dx < -20:
+        #             drone.move_left(abs(dx))  # Déplacement à gauche
+        #             print('Gauche de ', dx)
+
+        #         if dy > 20:
+        #             drone.move_forward(abs(dy))  # Avancer
+        #             print('Avance de ', dy)
+        #         elif dy < -20:
+        #             drone.move_back(abs(dy))  # Reculer
+        #             print('Recule de ', dy)
+
+        #         #time.sleep(1)  # Pause pour stabilisation
+        #     except Exception as e:
+        #         print("Erreur lors de l'envoi des commandes au drone :", e)
+        # else:
+        #     # Affichage des commandes simulées
+        #     print(f"Commande simulée: dx={dx}, dy={dy}")
     drone.land()
 
 # Création de polices et des champs de saisie
@@ -171,4 +219,3 @@ if drone_connected:
 
 # Quitte Pygame
 pygame.quit()
-
