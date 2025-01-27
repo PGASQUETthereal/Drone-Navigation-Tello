@@ -1,0 +1,87 @@
+from djitellopy import Tello
+import time
+import math
+import cv2
+import threading
+
+from numpy import hanning
+
+
+
+# Dimensions de l'air (en mètres)
+area_length = 5  # Valeur par défaut
+area_width = 5  # Valeur par défaut
+
+# Tentative de connexion au drone
+try:
+    drone = Tello()
+    drone.connect()
+    print(f"Battery Level: {drone.get_battery()}%")
+    drone.streamon()
+    drone_connected = True
+except Exception as e:
+    print("Drone non connecté :", e)
+
+
+def send_commands_to_drone(trajectory):
+    """
+    Envoie les commandes de vol au drone pour suivre la trajectoire ou affiche les commandes si le drone n'est pas connecté.
+    """
+    if drone_connected:
+        drone.takeoff()
+    angle = 0  # Angle initial (en degrés)
+
+
+    
+    if drone_connected:
+        try:
+            drone.land()
+        except Exception as e:
+            print("Erreur lors de l'atterrissage :", e)
+    drone.land()
+
+
+
+input_active_length = False
+input_active_width = False
+text_length = str(area_length)
+text_width = str(area_width)
+
+face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+
+
+
+while True:
+        # Capture d'une image du drone
+        frame = drone.get_frame_read().frame
+        frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Convertir l'image en niveaux de gris pour la détection
+        gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+
+        # Détection des visages
+        faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
+
+        # Dessiner des rectangles autour des visages détectés
+        for (x, y, w, h) in faces:
+            cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
+
+        # Afficher l'image avec les rectangles
+        cv2.imshow('Détection de Visage', frame)
+
+        # Quitter le programme si 'q' est pressé
+        if cv2.waitKey(1) & 0xFF == ord('q'):
+            break
+
+
+# Atterrissage et arrêt du drone si connecté
+if drone_connected:
+    try:
+        drone.land()
+        drone.streamoff()
+        drone.end()
+    except Exception as e:
+        print("Erreur lors de l'arrêt du drone :", e)
+
+# Quitte Pygame et fenètre stream
+cv2.destroyAllWindows()
