@@ -2,6 +2,8 @@ import pygame
 from djitellopy import Tello
 import time
 import math
+import cv2
+import threading
 
 # Initialisation de Pygame
 pygame.init()
@@ -33,6 +35,7 @@ try:
     drone = Tello()
     drone.connect()
     print(f"Battery Level: {drone.get_battery()}%")
+    drone.streamon()
     drone_connected = True
 except Exception as e:
     print("Drone non connecté :", e)
@@ -84,7 +87,7 @@ def send_commands_to_drone(trajectory):
 
                 # Avancer sur la distance calculée
                 drone.move_forward(int(distance))  # Convertir en cm
-                time.sleep(1)  # Pause pour stabilisation
+                #time.sleep(1)  # Pause pour stabilisation
             except Exception as e:
                 print("Erreur lors de l'envoi des commandes au drone :", e)
         else:
@@ -96,35 +99,12 @@ def send_commands_to_drone(trajectory):
             drone.land()
         except Exception as e:
             print("Erreur lors de l'atterrissage :", e)
-
-        # if drone_connected:
-        #     try:
-        #         if dx > 20:
-        #             drone.move_right(abs(dx))  # Déplacement à droite
-        #             print('Droite de ', dx)
-        #         elif dx < -20:
-        #             drone.move_left(abs(dx))  # Déplacement à gauche
-        #             print('Gauche de ', dx)
-
-        #         if dy > 20:
-        #             drone.move_forward(abs(dy))  # Avancer
-        #             print('Avance de ', dy)
-        #         elif dy < -20:
-        #             drone.move_back(abs(dy))  # Reculer
-        #             print('Recule de ', dy)
-
-        #         #time.sleep(1)  # Pause pour stabilisation
-        #     except Exception as e:
-        #         print("Erreur lors de l'envoi des commandes au drone :", e)
-        # else:
-        #     # Affichage des commandes simulées
-        #     print(f"Commande simulée: dx={dx}, dy={dy}")
     drone.land()
 
 # Création de polices et des champs de saisie
 font = pygame.font.Font(None, 36)
 input_length = pygame.Rect(10, HEIGHT - 50, 100, 30)
-input_width = pygame.Rect(120, HEIGHT - 50, 100, 30)
+input_width = pygame.Rect(200, HEIGHT - 50, 100, 30)
 button_send = pygame.Rect(WIDTH - 150, HEIGHT - 50, 140, 40)
 
 # Zone de dessin pour la trajectoire
@@ -155,7 +135,8 @@ while running:
                 input_active_length = False
                 input_active_width = True
             elif button_send.collidepoint(event.pos):
-                send_commands_to_drone(trajectory)
+                # Lancer la fonction dans un thread séparé
+                threading.Thread(target=send_commands_to_drone, args=(trajectory,), daemon=True).start()
             elif DRAW_ZONE.collidepoint(event.pos):
                 # Ajoute des points à la trajectoire quand la souris est cliquée
                 if event.button == 1:  # Clic gauche
@@ -205,17 +186,29 @@ while running:
     label_width = font.render("Largeur (m):", True, BLACK)
 
     win.blit(label_length, (10, HEIGHT - 80))
-    win.blit(label_width, (120, HEIGHT - 80))
+    win.blit(label_width, (200, HEIGHT - 80))
 
     pygame.display.update()
+
+    # Récupérer le flux vidéo sous forme d'image
+    frame = drone.get_frame_read().frame
+    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        # Afficher l'image avec OpenCV
+    cv2.imshow("Flux vidéo du drone", frame)
+
+        # Quitter avec 'q'
+    if cv2.waitKey(1) & 0xFF == ord('q'):
+        break
 
 # Atterrissage et arrêt du drone si connecté
 if drone_connected:
     try:
         drone.land()
+        drone.streamoff()
         drone.end()
     except Exception as e:
         print("Erreur lors de l'arrêt du drone :", e)
 
-# Quitte Pygame
+# Quitte Pygame et fenètre stream
 pygame.quit()
+cv2.destroyAllWindows()
