@@ -6,11 +6,15 @@ import threading
 
 from numpy import hanning
 
+# Dimensions de l'image
+FRAME_WIDTH = 960
+FRAME_HEIGHT = 720
+CENTER_X = FRAME_WIDTH // 2
+CENTER_Y = FRAME_HEIGHT // 2
 
-
-# Dimensions de l'air (en mètres)
-area_length = 5  # Valeur par défaut
-area_width = 5  # Valeur par défaut
+# Seuils pour définir une zone où le drone ne bouge pas
+TOLERANCE_X = 100
+TOLERANCE_Y = 80
 
 # Tentative de connexion au drone
 try:
@@ -23,37 +27,52 @@ except Exception as e:
     print("Drone non connecté :", e)
 
 
-def send_commands_to_drone(trajectory):
+def send_commands_to_drone(face_x, face_y, face_w, face_h):
     """
-    Envoie les commandes de vol au drone pour suivre la trajectoire ou affiche les commandes si le drone n'est pas connecté.
+    Envoie des commandes au drone pour suivre le visage détecté.
     """
-    if drone_connected:
-        drone.takeoff()
-    angle = 0  # Angle initial (en degrés)
+    if not drone_connected:
+        print("Drone non connecté")
+        return
+
+    # Calcul de la position du centre du visage
+    face_center_x = face_x + face_w // 2
+    face_center_y = face_y + face_h // 2
+
+    # Calcul des écarts entre le centre du visage et le centre de l'image
+    delta_x = face_center_x - CENTER_X
+    delta_y = face_center_y - CENTER_Y
+
+    # Commandes de mouvement
+    if abs(delta_x) > TOLERANCE_X:
+        if delta_x > 0:
+            drone.move_right(20)  # Déplacer à droite
+        else:
+            drone.move_left(20)  # Déplacer à gauche
+
+    if abs(delta_y) > TOLERANCE_Y:
+        if delta_y > 0:
+            drone.move_down(20)  # Descendre
+        else:
+            drone.move_up(20)  # Monter
+
+    # Ajustement de la distance en fonction de la taille du visage
+    if face_w < 100:  # Le visage est petit, avancer
+        drone.move_forward(20)
+    elif face_w > 150:  # Le visage est grand, reculer
+        drone.move_back(20)
 
 
-    
-    if drone_connected:
-        try:
-            drone.land()
-        except Exception as e:
-            print("Erreur lors de l'atterrissage :", e)
-    drone.land()
 
-
-
-input_active_length = False
-input_active_width = False
-text_length = str(area_length)
-text_width = str(area_width)
 
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-
+drone.takeoff()
 
 
 while True:
         # Capture d'une image du drone
         frame = drone.get_frame_read().frame
+        frame = cv2.resize(frame, (FRAME_WIDTH, FRAME_HEIGHT))
         frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
 
         # Convertir l'image en niveaux de gris pour la détection
@@ -65,10 +84,10 @@ while True:
         # Dessiner des rectangles autour des visages détectés
         for (x, y, w, h) in faces:
             cv2.rectangle(frame, (x, y), (x + w, y + h), (255, 0, 0), 2)
-
+            threading.Thread(target=send_commands_to_drone, args=(x,y,w,h,), daemon=True).start()
         # Afficher l'image avec les rectangles
         cv2.imshow('Détection de Visage', frame)
-
+        
         # Quitter le programme si 'q' est pressé
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
