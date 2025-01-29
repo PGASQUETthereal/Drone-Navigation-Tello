@@ -11,10 +11,6 @@ FRAME_HEIGHT = 720
 CENTER_X = FRAME_WIDTH // 2
 CENTER_Y = FRAME_HEIGHT // 2
 
-# Seuils pour définir une zone où le drone ne bouge pas
-TOLERANCE_X = 100
-TOLERANCE_Y = 80
-
 # Tentative de connexion au drone
 try:
     drone = Tello()
@@ -42,35 +38,38 @@ def send_commands_to_drone(X, Y, endX, endY):
     delta_x = face_center_x - CENTER_X
     delta_y = face_center_y - CENTER_Y
 
-    # Commandes de mouvement
-    if abs(delta_x) > TOLERANCE_X:
-        if delta_x > 0:
-            drone.move_right(20)  # Déplacer à droite
-        else:
-            drone.move_left(20)  # Déplacer à gauche
-
-    if abs(delta_y) > TOLERANCE_Y:
-        if delta_y > 0:
-            drone.move_down(20)  # Descendre
-        else:
-            drone.move_up(20)  # Monter
-
-    # Ajustement de la distance en fonction de la taille du visage
-    if endX - X < 100:  # Le visage est petit, avancer
-        drone.move_forward(20)
-    elif endX - X > 150:  # Le visage est grand, reculer
-        drone.move_back(20)
+    # Calcul des vitesses à appliquer au drone
+    left_right_velocity = 0
+    forward_backward_velocity = 0
+    up_down_velocity = 0
+    yaw_velocity = 0
 
 
+    yaw_velocity = int(delta_x*0.2)
 
+    up_down_velocity = int(-delta_y*0.2)
+
+    face_width = endX - X
+
+    forward_backward_velocity = int(-(face_width-100) * 0.5)
+
+    print("Vitesse : yaw = ", yaw_velocity, "up_down = ", up_down_velocity, "for_back = ", forward_backward_velocity)
+    
+    #Envoie de la commande au drone
+    drone.send_rc_control(left_right_velocity, forward_backward_velocity, up_down_velocity, yaw_velocity)
+
+
+def takeoff():
+        print(drone.get_height())
+        if drone.get_height()==0 : 
+            drone.takeoff()
 
 face_net = cv2.dnn.readNetFromCaffe(
     "C:/Users/tiger/Documents/Cours/3A/ProjetDrone/deploy.prototxt",
     "C:/Users/tiger/Documents/Cours/3A/ProjetDrone/res10_300x300_ssd_iter_140000.caffemodel"
 )
 
-#drone.takeoff()
-
+# drone.takeoff()
 
 while True:
         # Capture d'une image du drone
@@ -95,6 +94,7 @@ while True:
 
         cv2.imshow('Détection de Visage', frame)
         
+        threading.Thread(target = takeoff, args=(), daemon=True).start()
         # Quitter le programme si 'q' est pressé
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
