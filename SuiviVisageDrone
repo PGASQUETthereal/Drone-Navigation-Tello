@@ -60,9 +60,22 @@ def send_commands_to_drone(X, Y, endX, endY):
 
 
 def takeoff():
-        print(drone.get_height())
-        if drone.get_height()==0 : 
+    try:
+        battery = drone.get_battery()
+        print(f"Batterie : {battery}%")
+        
+        if battery < 20:
+            print("Batterie trop faible pour décoller.")
+            return
+        
+        height = drone.get_height()
+        print(f"Hauteur actuelle : {height} cm")
+        
+        if height == 0:
             drone.takeoff()
+    except Exception as e:
+        print("Erreur lors du décollage :", e)
+
 
 face_net = cv2.dnn.readNetFromCaffe(
     "C:/Users/tiger/Documents/Cours/3A/ProjetDrone/deploy.prototxt",
@@ -70,6 +83,7 @@ face_net = cv2.dnn.readNetFromCaffe(
 )
 
 # drone.takeoff()
+has_taken_off = False
 
 while True:
         # Capture d'une image du drone
@@ -92,9 +106,17 @@ while True:
                 cv2.rectangle(frame, (startX, startY), (endX, endY), (255, 0, 0), 2)
                 threading.Thread(target=send_commands_to_drone, args=(startX,startY,endX,endY,), daemon=True).start()
 
-        cv2.imshow('Détection de Visage', frame)
         
-        threading.Thread(target = takeoff, args=(), daemon=True).start()
+        cv2.imshow('Détection de Visage', frame)
+
+         # Vérifie si le drone n'a pas encore décollé
+        if not has_taken_off:
+            takeoff()             # Décollage après l'ouverture de la fenêtre
+            has_taken_off = True  # Marque le drapeau pour éviter de redécoller
+
+        
+
+        #threading.Thread(target = takeoff, args=(), daemon=True).start()
         # Quitter le programme si 'q' est pressé
         if cv2.waitKey(1) & 0xFF == ord('q'):
             break
@@ -105,7 +127,14 @@ if drone_connected:
     try:
         drone.land()
         drone.streamoff()
-        drone.end()
+        drone.end()  # Ferme correctement la connexion
+        drone_connected = False
+
+        # Reconnexion propre
+        drone = Tello()
+        drone.connect()
+        drone.streamon()
+        drone_connected = True
     except Exception as e:
         print("Erreur lors de l'arrêt du drone :", e)
 
