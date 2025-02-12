@@ -22,7 +22,7 @@ except Exception as e:
     print("Drone non connecté :", e)
 
 
-def send_commands_to_drone(X, Y, endX, endY):
+def send_commands_to_drone(X, Y, endX, endY, nb_detection):
     """
     Envoie des commandes au drone pour suivre le visage détecté.
     """
@@ -37,21 +37,22 @@ def send_commands_to_drone(X, Y, endX, endY):
     # Calcul des écarts entre le centre du visage et le centre de l'image
     delta_x = face_center_x - CENTER_X
     delta_y = face_center_y - CENTER_Y
-
-    # Calcul des vitesses à appliquer au drone
+ 
     left_right_velocity = 0
     forward_backward_velocity = 0
     up_down_velocity = 0
     yaw_velocity = 0
 
+    
+    if nb_detection !=0 :
+        yaw_velocity = int(delta_x*0.2)
 
-    yaw_velocity = int(delta_x*0.2)
+        up_down_velocity = int(-delta_y*0.2)
 
-    up_down_velocity = int(-delta_y*0.2)
+        face_width = endX - X
 
-    face_width = endX - X
+        forward_backward_velocity = int(-(face_width-100) * 0.5)
 
-    forward_backward_velocity = int(-(face_width-100) * 0.5)
 
     print("Vitesse : yaw = ", yaw_velocity, "up_down = ", up_down_velocity, "for_back = ", forward_backward_velocity)
     
@@ -98,20 +99,38 @@ while True:
         face_net.setInput(blob)
         detections = face_net.forward()
 
+        # Initialisation de la variable pour suivre le plus grand visage
+        largest_face = None
+        max_area = 0
+        nb_faces = 0
+
         for i in range(0, detections.shape[2]):
             confidence = detections[0, 0, i, 2]  # Confiance du modèle
             if confidence > 0.6:  # Seulement les visages fiables
                 box = detections[0, 0, i, 3:7] * np.array([FRAME_WIDTH, FRAME_HEIGHT, FRAME_WIDTH, FRAME_HEIGHT])
                 (startX, startY, endX, endY) = box.astype("int")
-                cv2.rectangle(frame, (startX, startY), (endX, endY), (255, 0, 0), 2)
-                threading.Thread(target=send_commands_to_drone, args=(startX,startY,endX,endY,), daemon=True).start()
+                nb_faces += 1
+                # Calcul de la surface du visage
+                area = (endX - startX) * (endY - startY)
+                
+                # Vérifie si c'est le plus grand visage détecté
+                if area > max_area & nb_faces<1:
+                    max_area = area
+                    largest_face = (startX, startY, endX, endY)
 
-        
+        print("nb_faces : ",nb_faces)
+        # Si un visage a été détecté, dessine-le et envoie les commandes
+        if largest_face:
+            (startX, startY, endX, endY) = largest_face
+            cv2.rectangle(frame, (startX, startY), (endX, endY), (255, 0, 0), 2)
+            threading.Thread(target=send_commands_to_drone, args=(startX, startY, endX, endY, nb_faces), daemon=True).start()
+        else :
+            threading.Thread(target=send_commands_to_drone, args=(0,0,0,0, nb_faces), daemon=True).start()
         cv2.imshow('Détection de Visage', frame)
-
+                
          # Vérifie si le drone n'a pas encore décollé
         if not has_taken_off:
-            takeoff()             # Décollage après l'ouverture de la fenêtre
+            #takeoff()             # Décollage après l'ouverture de la fenêtre
             has_taken_off = True  # Marque le drapeau pour éviter de redécoller
 
         
