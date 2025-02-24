@@ -1,0 +1,112 @@
+import pygame
+from djitellopy import TelloSwarm
+import threading
+import cv2
+import math
+
+# Initialisation de Pygame
+pygame.init()
+
+# Configuration de la fenêtre
+WIDTH, HEIGHT = 800, 600
+win = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Gestion de la flotte de drones")
+
+# Couleurs
+WHITE = (255, 255, 255)
+BLACK = (0, 0, 0)
+RED = (255, 0, 0)
+GRAY = (200, 200, 200)
+
+# Variables
+trajectory = []  # Liste des points
+running = True
+area_length = 5  # Longueur de la zone
+area_width = 5   # Largeur de la zone
+x0 = WIDTH / 2
+y0 = 0
+
+drone_ips = [
+    "192.168.137.86",  # Drone 1
+    "192.168.137.233", # Drone 2
+]
+
+# Connexion aux drones
+swarm = TelloSwarm.fromIps(drone_ips)
+swarm.connect()
+
+# Fonction pour trouver le drone le plus proche d'un point
+def find_closest_drone(drones_states, point):
+    min_distance = float('inf')
+    closest_drone = None
+    for drone, (x, y, angle, inFlight) in drones_states.items():
+        distance = math.sqrt((x - point[0])**2 + (y - point[1])**2)
+        if distance < min_distance:
+            min_distance = distance
+            closest_drone = drone
+    return closest_drone
+
+# Fonction pour envoyer les drones sur les points définis
+def send_drones_to_points():
+    drones_states = {drone: (x0, y0, 0, False) for drone in swarm.tellos}  # Positions initiales avec état de vol
+    remaining_points = trajectory.copy()
+
+    def move_to_point(drone):
+        while remaining_points:
+            point = remaining_points.pop(0)  # Récupérer un point valide
+            x, y = point
+            dx = ((x - drones_states[drone][0]) / WIDTH) * area_width * 100
+            dy = ((y - drones_states[drone][1]) / HEIGHT) * area_length * 100
+            angle = math.degrees(math.atan2(dx, dy))
+            
+            if drones_states[drone][3] == False:
+                drone.takeoff()
+
+            drone.rotate_clockwise(int(angle))
+            drone.move_forward(int(math.sqrt(dx**2 + dy**2)))
+            drone.flip_forward()
+            
+            drones_states[drone] = (x, y, angle, True)  # Mise à jour de la position, de l'angle et de l'état de vol
+
+        # Retourner à la base
+        home_x, home_y = x0, y0
+        final_angle = 180 - drones_states[drone][2]
+        final_dx = home_x - drones_states[drone][0]
+        final_dy = home_y - drones_states[drone][1]
+        drone.rotate_clockwise(int(final_angle))
+        drone.move_forward(int(math.sqrt(final_dx**2 + final_dy**2)))
+        drone.land()
+        drones_states[drone] = (home_x, home_y, 0, False)  # Mise à jour après l'atterrissage
+
+    threads = []
+    for drone in swarm.tellos:
+        t = threading.Thread(target=move_to_point, args=(drone,))
+        t.start()
+        threads.append(t)
+
+    for t in threads:
+        t.join()
+
+# Zone de dessin pour la trajectoire
+DRAW_ZONE = pygame.Rect(0, 0, WIDTH, HEIGHT - 100)
+
+# Boucle principale
+while running:
+    win.fill(WHITE)
+    pygame.draw.rect(win, GRAY, DRAW_ZONE, 2)
+
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        elif event.type == pygame.MOUSEBUTTONDOWN and DRAW_ZONE.collidepoint(event.pos):
+            trajectory.append(event.pos)
+        elif event.type == pygame.KEYDOWN and event.key == pygame.K_RETURN:
+            threading.Thread(target=send_drones_to_points, daemon=True).start()
+
+    for point in trajectory:
+        pygame.draw.circle(win, RED, point, 5)  # Affichage des points sans tracer de ligne
+
+    pygame.display.update()
+
+pygame.quit()
+swarm.end()

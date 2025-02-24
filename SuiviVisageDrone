@@ -1,4 +1,5 @@
 from djitellopy import Tello
+from djitellopy import TelloSwarm
 import cv2
 import threading
 import numpy as np
@@ -10,6 +11,8 @@ FRAME_WIDTH = 960
 FRAME_HEIGHT = 720
 CENTER_X = FRAME_WIDTH // 2
 CENTER_Y = FRAME_HEIGHT // 2
+
+
 
 # Tentative de connexion au drone
 try:
@@ -83,7 +86,7 @@ face_net = cv2.dnn.readNetFromCaffe(
     "C:/Users/tiger/Documents/Cours/3A/ProjetDrone/res10_300x300_ssd_iter_140000.caffemodel"
 )
 
-# drone.takeoff()
+
 has_taken_off = False
 
 while True:
@@ -130,7 +133,7 @@ while True:
                 
          # Vérifie si le drone n'a pas encore décollé
         if not has_taken_off:
-            #takeoff()             # Décollage après l'ouverture de la fenêtre
+            takeoff()             # Décollage après l'ouverture de la fenêtre
             has_taken_off = True  # Marque le drapeau pour éviter de redécoller
 
         
