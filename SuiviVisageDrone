@@ -1,5 +1,4 @@
 from djitellopy import Tello
-from djitellopy import TelloSwarm
 import cv2
 import threading
 import numpy as np

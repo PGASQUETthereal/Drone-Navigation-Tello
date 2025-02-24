@@ -10,7 +10,7 @@ Drone.connect()
 #Get Battery Info
 print("Batterie : " + str(Drone.get_battery()))
 
-Drone.takeoff()
+#Drone.takeoff()
 print("Baromètre : " + str(Drone.get_barometer()))
 print("State : " + str(Drone.get_current_state()))
 
@@ -19,8 +19,8 @@ print("State : " + str(Drone.get_current_state()))
 
 
 
-Drone.move_forward(500)
+# Drone.move_forward(500)
 
-Drone.flip_forward()
+# Drone.flip_forward()
 
-Drone.land()
+# Drone.land()
